@@ -1,4 +1,3 @@
-import dgl
 import time
 import torch
 import numpy as np
@@ -48,26 +47,28 @@ class GCNNet(nn.Module):
 
     def forward(self, g, features):
         x = self.gcn1(g, features)
-        x = self.gcn2(x)
+        x = self.gcn2(g, x)
         return x
 
 
-def load_cora_data():
+def load_cora_data(show=False):
     data = citation_graph.load_cora()
     features = torch.FloatTensor(data.features)
     labels = torch.LongTensor(data.labels)
     train_mask = torch.BoolTensor(data.train_mask)
     test_mask = torch.BoolTensor(data.test_mask)
-    g = data.graph
 
+    g = data.graph
     g.remove_edges_from(nx.selfloop_edges(g))
     g = DGLGraph(g)
     g.add_edges(g.nodes(), g.nodes())
 
-    figs, ax = plt.subplots()
-    nx.draw(g.to_networkx(), ax=ax)
-    ax.set_title('Cora citation graph')
-    plt.show()
+    if show is True:
+        figs, ax = plt.subplots()
+        nx.draw(g.to_networkx(), ax=ax)
+        ax.set_title('Cora citation graph')
+        plt.show()
+
     return g, features, labels, train_mask, test_mask
 
 
@@ -82,28 +83,29 @@ def evaluate(model, g, features, labels, mask):
         return correct.item() * 1.0 / len(labels)
 
 
-net = GCNNet()
-print(net)
+if __name__ == '__main__':
+    net = GCNNet()
+    print(net)
 
-g, features, labels, train_mask, test_mask = load_cora_data()
-optimizer = torch.optim.Adam(net.parameters(), lr=1e-3)
-dur = []
+    g, features, labels, train_mask, test_mask = load_cora_data()
+    optimizer = torch.optim.Adam(net.parameters(), lr=1e-3)
+    dur = []
 
-for epoch in range(50):
-    if epoch >= 3:
-        t0 = time.time()
+    for epoch in range(50):
+        if epoch >= 3:
+            t0 = time.time()
 
-    net.train()
-    logits = net(g, features)
-    log = F.log_softmax(logits, 1)
-    loss = F.nll_loss(log[train_mask], labels[train_mask])
+        net.train()
+        logits = net(g, features)
+        log = F.log_softmax(logits, 1)
+        loss = F.nll_loss(log[train_mask], labels[train_mask])
 
-    optimizer.zero_grad()
-    loss.backward()
-    optimizer.step()
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
 
-    if epoch >= 3:
-        dur.append(time.time() - t0)
+        if epoch >= 3:
+            dur.append(time.time() - t0)
 
-    acc = evaluate(net, g, features, labels, test_mask)
-    print(f'Epoch: {epoch} | Loss: {round(loss.item(), 4)} | Accuracy: {round(acc, 4)} | Time(s): {np.mean(dur)}')
+        acc = evaluate(net, g, features, labels, test_mask)
+        print(f'Epoch: {epoch} | Loss: {round(loss.item(), 4)} | Accuracy: {round(acc, 4)} | Time(s): {np.mean(dur)}')
